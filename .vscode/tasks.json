@@ -1,0 +1,33 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/net-core-photo-sorter-utility.csproj"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Clean",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "clean",
+                "${workspaceFolder}/net-core-photo-sorter-utility.csproj"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <RuntimeIdentifiers>win10-x64</RuntimeIdentifiers>
+    <!-- <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies> -->
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <LangVersion>7.1</LangVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <LangVersion>7.1</LangVersion>
+  </PropertyGroup>
+
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+      <Exec Command="xcopy $(ProjectDir)externals\exiftool.exe $(OutDir) /f /y /i" />
+  </Target>
+  <!-- Uncomment to add Post Build event command -->
+  <!--
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="" />
+  </Target>
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="System.Linq" Version="4.3.0"/>
+    <PackageReference Include="Newtonsoft.Json" Version="10.0.3"/>
+    <PackageReference Include="System.Diagnostics.Process" Version="4.1.0" />
+  </ItemGroup>
+</Project>
