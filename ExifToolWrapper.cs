@@ -13,53 +13,47 @@ namespace PhotoSorterUtility
 {
     public sealed class ExifToolWrapper : IDisposable
     {
-        #region Exiftool command prompt args examples
-        //* .\exiftool.exe -exif:all -s2 -n -H -x ThumbnailImage 1.jpg
-        //* .\exiftool.exe -exif:all -j -n -D -x ThumbnailImage 1.jpg
-        #endregion Exiftool command prompt args examples
-
         private const String ImageFilesReadErrorMessage = "image files read";
-        private const String ArgsToGetImageExifTagsAsJsonString = "-exif:all -j -n -D -x ThumbnailImage";
+        private const String ExifToolInputArgsFileName = "input.arg";
+        private const String ExifToolInputTmpArgsFileName = "input.arg.tmp";
+
+        private static readonly String baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        private static readonly StringBuilder exifToolOutput = new StringBuilder();
 
         private Process exifToolProcess = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = $"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\exiftool.exe",
+                FileName = Path.Combine(baseDirectory, "exiftool.exe"),
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                WindowStyle = ProcessWindowStyle.Hidden,
+                Arguments = $"-@ {ExifToolInputTmpArgsFileName}"
             }
         };
 
         public UInt16 waitForFinishIntervalMsec { get; set; }
 
-        public ExifToolWrapper(UInt16 waitForFinishIntervalMsec = 10000)
+        public ExifToolWrapper(UInt16 waitForFinishIntervalMsec = UInt16.MaxValue)
         {
             this.waitForFinishIntervalMsec = waitForFinishIntervalMsec;
+
+            exifToolProcess.OutputDataReceived += (Object sender, DataReceivedEventArgs e) =>
+            {
+                var dataChunk = e.Data?.Trim();
+                if (!IsNullOrEmpty(dataChunk))
+                {
+                    exifToolOutput.Append(dataChunk);
+                }
+            };
         }
 
-        private String RunTool(String imagesArg)
+        private String RunTool()
         {
-            if (IsNullOrWhiteSpace(imagesArg))
-            {
-                return Empty;
-            }
-
             try
             {
-                exifToolProcess.StartInfo.Arguments = $"{ArgsToGetImageExifTagsAsJsonString} {imagesArg}";
-
-                var output = new StringBuilder();
-                exifToolProcess.OutputDataReceived += (Object sender, DataReceivedEventArgs e) =>
-                {
-                    var dataChunk = e.Data?.Trim();
-                    if (!IsNullOrEmpty(dataChunk))
-                    {
-                        output.Append(dataChunk);
-                    }
-                };
+                exifToolOutput.Clear();
 
                 if (!exifToolProcess.Start())
                 {
@@ -78,9 +72,11 @@ namespace PhotoSorterUtility
 
                 if (exifToolProcess.WaitForExit(waitForFinishIntervalMsec))
                 {
+                    //var result = exifToolOutput.ToString();
                     // Stop async read of standard output stream
                     exifToolProcess.CancelOutputRead();
-                    return output.ToString();
+
+                    return exifToolOutput.ToString();
                 }
 
                 throw new Exception("Failed to correctly finish Exiftool process");
@@ -91,29 +87,46 @@ namespace PhotoSorterUtility
             }
         }
 
-        public String GetSingleImageMetadataAsJsonString(String imagePath)
+        private void WriteInputImageFilePathsToTmpArgsFile(IEnumerable<String> imagePaths)
         {
-            var path = imagePath?.Trim();
-            if (IsNullOrEmpty(path))
+            if (imagePaths == null || imagePaths.All(ip => IsNullOrWhiteSpace(ip)))
             {
-                return Empty;
+                throw new ArgumentException("Failed to run Exiftool process. Image path(s) not defined", nameof(imagePaths));
             }
 
-            return RunTool($"\"{path}\"");
-        }
-
-        public String GetImagesMetadataAsJsonString(IEnumerable<String> imagesPaths)
-        {
-            if (imagesPaths == null || !imagesPaths.Any())
+            // Check input.arg file exists
+            if (!File.Exists(Path.Combine(baseDirectory, ExifToolInputArgsFileName)))
             {
-                return Empty;
+                throw new FileNotFoundException("Can't find Exiftool arguments file", ExifToolInputArgsFileName);
             }
 
-            var paths = new StringBuilder();
-            paths.AppendJoin(" ", imagesPaths.Select(ip => $"\"{ip.Trim()}\""));
-
-            return RunTool(paths.ToString());
+            try
+            {
+                // Create temporary input args file (overwrite existing one)
+                File.Copy(
+                    Path.Combine(baseDirectory, ExifToolInputArgsFileName),
+                    Path.Combine(baseDirectory, ExifToolInputTmpArgsFileName),
+                    true);
+                // Append image path(s) to the temporary input args file
+                File.AppendAllLines(
+                    Path.Combine(baseDirectory, ExifToolInputTmpArgsFileName),
+                    imagePaths.Where(ip => !IsNullOrWhiteSpace(ip)).Select(ip => ip.Trim()),
+                    Encoding.GetEncoding("UTF-8"));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Failed to create or write to tmp Exiftool input args file", ex);
+            }
         }
+
+        public String GetImagesMetadataAsJsonString(IEnumerable<String> imagePaths)
+        {
+            WriteInputImageFilePathsToTmpArgsFile(imagePaths);
+            return RunTool();
+        }
+
+        public String GetSingleImageMetadataAsJsonString(String imagePath) =>
+            GetImagesMetadataAsJsonString(new List<String> { imagePath });
 
         #region IDisposable members
 

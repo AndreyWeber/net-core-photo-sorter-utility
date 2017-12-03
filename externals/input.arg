@@ -1,0 +1,18 @@
+# Define charset of input file name(s)
+-charset
+filename=utf8
+# Extract all EXIF tags from file(s)
+-exif:all
+# Format output result as JSON string
+-j
+# Disable output print conversion to human readable format
+-n
+# Show tag ID number as decimal
+-D
+# Exclude 'ThumbnailImage' tag from output
+-x
+ThumbnailImage
+# Exclude 'OtherImage' tag from output
+-x
+OtherImage
+#Input file name(s) must be specified below

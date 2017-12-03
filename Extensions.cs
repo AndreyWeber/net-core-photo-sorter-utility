@@ -7,8 +7,9 @@ namespace PhotoSorterUtility
     {
         #region Collections/Lists extensions
 
-        public static IEnumerable<IList<T>> ChunkBy<T>(this List<T> sourceList, UInt16 chunkSize = 50)
+        public static IEnumerable<IList<T>> ChunkBy<T>(this IEnumerable<T> source, UInt16 chunkSize = 50)
         {
+            var sourceList = new List<T>(source);
             for (var i = 0; i < sourceList.Count; i += chunkSize)
             {
                 yield return sourceList.GetRange(i, Math.Min(chunkSize, sourceList.Count - i));

@@ -8,7 +8,7 @@ namespace PhotoSorterUtility
         public String Name { get; set ;}
         public String Value { get; set; }
 
-        #region Example of list of tags
+        #region Example list of tags
         /**
             0x010f Make: LGE
             0x0110 Model: Nexus 5

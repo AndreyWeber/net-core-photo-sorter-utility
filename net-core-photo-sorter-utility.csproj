@@ -16,6 +16,7 @@
 
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
       <Exec Command="xcopy $(ProjectDir)externals\exiftool.exe $(OutDir) /f /y /i" />
+      <Exec Command="xcopy $(ProjectDir)externals\input.arg $(OutDir) /f /y /i" />
   </Target>
   <!-- Uncomment to add Post Build event command -->
   <!--

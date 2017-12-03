@@ -14,47 +14,59 @@ using Newtonsoft.Json;
 
 namespace PhotoSorterUtility
 {
-    // TODO:
-    /**
-        //// 1. DateTime string convert
-        //// 2. Hanging while reading error in ExifToolWrapper
-        //// 3. Async read of data inside ExifToolWrapper
-        4. Logging to console
-        5. Find files for all specified extensions
-     */
-
     class Program
     {
         public static void Main(string[] args)
         {
-            const String dir = @"C:\Users\Andrey\Pictures\From Nexus 5";
-            var files = Directory.EnumerateFiles(dir, "*.jpg", SearchOption.AllDirectories).ToList();
-            files.AddRange(Directory.EnumerateFiles(dir, "*.jpeg", SearchOption.AllDirectories));
+            Console.InputEncoding = Encoding.GetEncoding("UTF-8");
+            Console.OutputEncoding = Encoding.GetEncoding("UTF-8");
 
+            const String dir = @"C:\Users\Andrey\Pictures\From Nexus 5";
+            var files = Directory.EnumerateFiles(dir, "*.jpg", SearchOption.AllDirectories);
+            //? files.AddRange(Directory.EnumerateFiles(dir, "*.jpeg", SearchOption.AllDirectories));
+
+            const Int32 chunkSize = 1;
+            var imagesMetadata = new List<ImageMetadata>();
             using (var exifTool = new ExifToolWrapper())
             {
-                var chunks = files.ChunkBy(100).ToList();
-
                 var stopwatch = new Stopwatch();
+                Console.WriteLine("Processing start");
                 stopwatch.Start();
 
-                var jsonString = exifTool.GetImagesMetadataAsJsonString(files.Take(200));
+                var jsonString = Empty;
+                // 3678
+                foreach (var item in files.Skip(0).ChunkBy(chunkSize).Select((v, i) => new { i, v }))
+                {
+                    jsonString = exifTool.GetImagesMetadataAsJsonString(item.v);
+                    if (IsNullOrEmpty(jsonString))
+                    {
+                        Console.WriteLine($"Empty JSON response for chunk {item.i} detected. File: {item.v?.FirstOrDefault()}");
+                        // Console.WriteLine($"Empty JSON response for chunk {item.i} detected. File: {item.v?.Count()}");
+                        continue;
+                    }
 
-                stopwatch.Stop();
-                Console.WriteLine($"Time elapsed (async): {stopwatch.Elapsed}");
+                    try
+                    {
+                        imagesMetadata.AddRange(JsonConvert.DeserializeObject<List<ImageMetadata>>(jsonString));
 
-                stopwatch.Restart();
-
-                jsonString = exifTool.GetImagesMetadataAsJsonString(files.Take(200));
+                        Console.WriteLine($"Chunk {item.i} processed. File: {item.v?.FirstOrDefault()}");
+                        // Console.WriteLine($"Chunk {item.i} processed. File: {item.v?.Count()}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Exception: {ex.Message}");
+                        Console.WriteLine($"Inner exception: {ex?.InnerException?.Message ?? "<EMPTY>"}");
+                        Console.WriteLine($"JSON string: {jsonString}");
+                    }
+                }
 
                 stopwatch.Stop();
                 Console.WriteLine($"Time elapsed (sync): {stopwatch.Elapsed}");
 
-                var coll = JsonConvert.DeserializeObject<List<ImageMetadata>>(jsonString);
-
-                var dateTimeString = coll[1].ExifTags["DateTimeOriginal"].Value;
-                var dateTimeOriginal = DateTime.ParseExact(dateTimeString, "yyyy:MM:dd hh:mm:ss", CultureInfo.InvariantCulture);
-                var folderName = dateTimeOriginal.ToString("MM-yyyy");
+                //* CreateDate
+                // var dateTimeString = coll[1].ExifTags["DateTimeOriginal"].Value;
+                // var dateTimeOriginal = DateTime.ParseExact(dateTimeString, "yyyy:MM:dd hh:mm:ss", CultureInfo.InvariantCulture);
+                // var folderName = dateTimeOriginal.ToString("MM-yyyy");
             }
         }
     }
