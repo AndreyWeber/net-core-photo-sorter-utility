@@ -22,52 +22,52 @@ namespace PhotoSorterUtility
             Console.OutputEncoding = Encoding.GetEncoding("UTF-8");
 
             const String dir = @"C:\Users\Andrey\Pictures\From Nexus 5";
-            var files = Directory.EnumerateFiles(dir, "*.jpg", SearchOption.AllDirectories);
-            //? files.AddRange(Directory.EnumerateFiles(dir, "*.jpeg", SearchOption.AllDirectories));
+            var files = Directory.EnumerateFiles(dir, "*.jpg", SearchOption.AllDirectories).ToList();
+            files.AddRange(Directory.EnumerateFiles(dir, "*.jpeg", SearchOption.AllDirectories));
 
-            const Int32 chunkSize = 1;
-            var imagesMetadata = new List<ImageMetadata>();
-            using (var exifTool = new ExifToolWrapper())
+            ExifToolWrapper.RemoveAllTmpArgFiles();
+
+            Console.WriteLine("Processing start");
+
+            const Int32 chunkSize = 200;
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            var imagesMetadata = files
+                .ChunkBy(chunkSize)
+                .AsParallel()
+                .SelectMany(filePaths =>
+                    {
+                        var jsonString = Empty;
+                        using (var exifTool = new ExifToolWrapper())
+                        {
+                            jsonString = exifTool.GetImagesMetadataAsJsonString(filePaths);
+                        }
+
+                        return JsonConvert.DeserializeObject<List<ImageMetadata>>(jsonString) ?? new List<ImageMetadata>();
+                    });
+
+            var folderNames = new HashSet<String>();
+            foreach (var imageMetadata in imagesMetadata)
             {
-                var stopwatch = new Stopwatch();
-                Console.WriteLine("Processing start");
-                stopwatch.Start();
-
-                var jsonString = Empty;
-                // 3678
-                foreach (var item in files.Skip(0).ChunkBy(chunkSize).Select((v, i) => new { i, v }))
+                var creationDate = imageMetadata.ExtractImageCreationDate();
+                if (!creationDate.HasValue)
                 {
-                    jsonString = exifTool.GetImagesMetadataAsJsonString(item.v);
-                    if (IsNullOrEmpty(jsonString))
-                    {
-                        Console.WriteLine($"Empty JSON response for chunk {item.i} detected. File: {item.v?.FirstOrDefault()}");
-                        // Console.WriteLine($"Empty JSON response for chunk {item.i} detected. File: {item.v?.Count()}");
-                        continue;
-                    }
-
-                    try
-                    {
-                        imagesMetadata.AddRange(JsonConvert.DeserializeObject<List<ImageMetadata>>(jsonString));
-
-                        Console.WriteLine($"Chunk {item.i} processed. File: {item.v?.FirstOrDefault()}");
-                        // Console.WriteLine($"Chunk {item.i} processed. File: {item.v?.Count()}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Exception: {ex.Message}");
-                        Console.WriteLine($"Inner exception: {ex?.InnerException?.Message ?? "<EMPTY>"}");
-                        Console.WriteLine($"JSON string: {jsonString}");
-                    }
+                    continue;
                 }
 
-                stopwatch.Stop();
-                Console.WriteLine($"Time elapsed (sync): {stopwatch.Elapsed}");
+                var folderName = creationDate?.ToString("MM-yyyy");
+                if (!folderNames.Contains(folderName))
+                {
+                    folderNames.Add(folderName);
 
-                //* CreateDate
-                // var dateTimeString = coll[1].ExifTags["DateTimeOriginal"].Value;
-                // var dateTimeOriginal = DateTime.ParseExact(dateTimeString, "yyyy:MM:dd hh:mm:ss", CultureInfo.InvariantCulture);
-                // var folderName = dateTimeOriginal.ToString("MM-yyyy");
+                    Console.WriteLine(folderName);
+                }
             }
+
+            stopwatch.Stop();
+            Console.WriteLine($"Time elapsed (sync): {stopwatch.Elapsed}");
         }
     }
 }
