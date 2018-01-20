@@ -12,9 +12,9 @@
       "program": "${workspaceFolder}/bin/Debug/netcoreapp2.0/net-core-photo-sorter-utility.dll",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
+      "console": "externalTerminal",
       "stopAtEntry": false,
-      "internalConsoleOptions": "openOnSessionStart"
+      "internalConsoleOptions": "neverOpen"
     },
     {
       "name": ".NET Core Attach",

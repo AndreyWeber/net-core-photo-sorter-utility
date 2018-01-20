@@ -40,7 +40,7 @@ namespace PhotoSorterUtility
 
             var result = (ImageMetadata) existingValue;
 
-            result.SourceFile = jProp.Value.ToObject<String>(serializer);
+            result.SourceFilePath = jProp.Value.ToObject<String>(serializer);
             result.ExifTags = jObject.Properties().Skip(1).Select(prop => new ExifTag
             {
                 Id = prop.Value["id"].ToObject<Int64>(),

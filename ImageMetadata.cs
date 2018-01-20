@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Globalization;
 using System.Collections.Generic;
@@ -13,9 +14,15 @@ namespace PhotoSorterUtility
     [JsonConverter(typeof (JsonImageMetadataConverter))]
     public sealed class ImageMetadata
     {
+        public ImageMetadata() {}
+
         private const String DateTimeFormat = "yyyy:MM:dd HH:mm:ss";
 
-        public String SourceFile { get; set; } = String.Empty;
+        public String SourceFilePath { get; set; } = String.Empty;
+
+        [JsonIgnore]
+        public String CopyToDirectoryPath { get; set; } = String.Empty;
+
         public IDictionary<String, ExifTag> ExifTags { get; set; } = new Dictionary<String, ExifTag>();
 
         public DateTime? ExtractImageCreationDate()
@@ -38,17 +45,31 @@ namespace PhotoSorterUtility
             // TODO: Add image file creation date from file?
 
             DateTime creationDateTime;
-            var result = DateTime.TryParseExact(dateTimeString, DateTimeFormat, CultureInfo.InvariantCulture,
+            return DateTime.TryParseExact(dateTimeString, DateTimeFormat, CultureInfo.InvariantCulture,
                                                 DateTimeStyles.None, out creationDateTime)
                 ? (DateTime?) creationDateTime
                 : (DateTime?) null;
+        }
 
-            if (result == null)
+        public String SourceFileName
+        {
+            get
             {
-                Console.WriteLine($"Can't parse '{dateTimeString}' date time string");
-            }
+                if (IsNullOrWhiteSpace(SourceFilePath))
+                {
+                    return Empty;
+                }
 
-            return result;
+                try
+                {
+                    return Path.GetFileName(SourceFilePath);
+                }
+                catch (Exception ex)
+                {
+                    throw new FileNotFoundException(
+                        $"Can't get file name for path '{SourceFilePath}'", ex);
+                }
+            }
         }
     }
 }
