@@ -2,12 +2,12 @@
 using System.IO;
 using System.Text;
 using System.Linq;
+using System.Threading;
+using System.Diagnostics;
+using System.Configuration;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-
-using System.Threading; // TODO: Remove this if execution time won't be needed
-using System.Diagnostics; // TODO: Remove this if execution time won't be needed
 
 using static System.String;
 using static System.Console;
@@ -19,29 +19,6 @@ namespace PhotoSorterUtility
 {
     internal static class Program
     {
-        private static void RecreateOutputDir(String outputDirPath)
-        {
-            try
-            {
-                if (IsNullOrWhiteSpace(outputDirPath))
-                {
-                    throw new ArgumentNullException(nameof (outputDirPath), "Argument cannot be null or empty");
-                }
-
-                if (Directory.Exists(outputDirPath))
-                {
-                    // Remove ouput directory and all sub dirs
-                    Directory.Delete(outputDirPath, true);
-                }
-                Directory.CreateDirectory(outputDirPath);
-            }
-            catch (Exception ex)
-            {
-                throw new ApplicationException(
-                    $"Cannot re-create {outputDirPath} directory. Reason: {ex.Message}", ex);
-            }
-        }
-
         private static void ShowUsage()
         {
             WriteLine("DESCRIPTION");
@@ -102,11 +79,34 @@ namespace PhotoSorterUtility
             return true;
         }
 
-        // TODO: Move image types search pattern to config file?
-        private static List<String> GetInputImageFiles(String inputDir) =>
-            "jpg,jpeg,bmp,tiff,raw"
+        private static void RecreateOutputDir(String outputDirPath)
+        {
+            try
+            {
+                if (IsNullOrWhiteSpace(outputDirPath))
+                {
+                    throw new ArgumentNullException(nameof (outputDirPath), "Argument cannot be null or empty");
+                }
+
+                if (Directory.Exists(outputDirPath))
+                {
+                    // Remove ouput directory and all sub dirs
+                    Directory.Delete(outputDirPath, true);
+                }
+                Directory.CreateDirectory(outputDirPath);
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationException(
+                    $"Cannot re-create {outputDirPath} directory. Reason: {ex.Message}", ex);
+            }
+        }
+
+        private static List<String> GetInputImageFiles(String inputDir, String imageTypes) =>
+            imageTypes
                 .Split(",", StringSplitOptions.RemoveEmptyEntries)
-                .SelectMany(it => Directory.EnumerateFiles(inputDir, $"*.{it}", SearchOption.AllDirectories))
+                .SelectMany(imageType =>
+                    Directory.EnumerateFiles(inputDir, $"*.{imageType}", SearchOption.AllDirectories))
                 .ToList();
 
         public static void Main(String[] args)
@@ -120,10 +120,21 @@ namespace PhotoSorterUtility
                 return;
             }
 
-            const Int32 chunkSize = 200; // TODO: Move chunkSize to config file?
+            UInt16 chunkSize;
+            String knownImageTypes;
+            try
+            {
+                (chunkSize, knownImageTypes) = new Configuration();
+            }
+            catch (Exception ex)
+            {
+                WriteLine($"Error! {ex.Message}{NewLine}");
+                WriteLine("Program will stop");
+                return;
+            }
 
             var inputDir = args[0];
-            var outputDir = IsNullOrWhiteSpace(args[1])
+            var outputDir = args.Length < 2 || IsNullOrWhiteSpace(args[1])
                 ? Path.Combine(inputDir, "Output")
                 : args[1];
 
@@ -132,7 +143,7 @@ namespace PhotoSorterUtility
 
             ExifToolWrapper.RemoveAllTmpArgFiles();
 
-            var files = GetInputImageFiles(inputDir);
+            var files = GetInputImageFiles(inputDir, knownImageTypes);
 
             WriteLine($"Input directory is: \"{inputDir}\"");
             WriteLine($"Output directory is: \"{outputDir}\"");
@@ -209,7 +220,6 @@ namespace PhotoSorterUtility
             {
                 stepsCount = imagesMetadata.Count;
                 stepNum = 0;
-                //imagesMetadata.AsParallel()
                 foreach (var imageMetadata in imagesMetadata.AsParallel())
                 {
                     progress.Report((Double) stepNum / stepsCount);
