@@ -10,7 +10,7 @@
       "request": "launch",
       "preLaunchTask": "Build",
       "program": "${workspaceFolder}/bin/Debug/netcoreapp2.0/net-core-photo-sorter-utility.dll",
-      "args": [],
+      "args": ["-id:C:\\Users\\Andrey\\Pictures\\From Nexus 5", "-v"],
       "cwd": "${workspaceFolder}",
       "console": "externalTerminal",
       "stopAtEntry": false,

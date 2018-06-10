@@ -9,16 +9,20 @@ using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
+using Newtonsoft.Json;
+
 using static System.String;
 using static System.Console;
 using static System.Environment;
-
-using Newtonsoft.Json;
 
 namespace PhotoSorterUtility
 {
     internal static class Program
     {
+        private static String InputDir;
+        private static String OutputDir;
+        private static Boolean Verbose;
+
         private static void ShowUsage()
         {
             WriteLine("DESCRIPTION");
@@ -38,45 +42,102 @@ namespace PhotoSorterUtility
                       "other arguments will be ignored. This help will be displayed, if argument is specified");
         }
 
-        private static Boolean CheckArguments(String[] args)
+        private static IDictionary<String, String> GetArguments(String[] args)
         {
+            if (args == null || !args.Any())
+            {
+                throw new ApplicationException("Utility cannot be started without arguments");
+            }
+
+            var result = new Dictionary<String, String>();
+            foreach (var arg in args.Select(a => a.ToLower().Trim()))
+            {
+                if (!arg.First().Equals('-'))
+                {
+                    throw new ApplicationException($"Unknown utility argument: '{arg}'");
+                }
+
+                var argToken = arg.Any(c => c == ':')
+                    ? (
+                        ArgName: arg.Substring(0, arg.IndexOf(':')).Trim(),
+                        ArgVal: arg.Substring(arg.IndexOf(':') + 1, arg.LastIndexOf(arg.Last()) - arg.IndexOf(':')).Trim()
+                    )
+                    : (
+                        ArgName: arg,
+                        ArgVal: null
+                    );
+
+                if (!result.TryAdd(argToken.ArgName, argToken.ArgVal))
+                {
+                    throw new ApplicationException($"Can't parse utility argument: '{arg}'");
+                }
+            }
+
+            return result;
+        }
+
+        private static void ParseArguments(IDictionary<String, String> args)
+        {
+            #region Utility arguments description
             // *******************
             // * Arguments list: *
             // *******************
-            // [-? | -help] - non-obligatory argument. Should be specified as first argument,
-            //                other arguments will be ignored. Program help will be displayed,
-            //                if argument is specified
-            // input_dir    - obligatory argument. Path to input directory containing
-            //                images to sort
-            // [output_dir] - non-obligatory argument. Path to directory where to put
-            //                sorted images. Images will be placed into respective sub-directories
-            //                named by next pattern 'yyyy-MM'
+            // [-? | -help]         - non-obligatory argument. Should be specified as first argument,
+            //                        other arguments will be ignored. Program help will be displayed,
+            //                        if argument is specified
+            // -input_dir | -id     - obligatory argument. Path to input directory containing
+            //                        images to sort
+            // [-output_dir | -od]  - non-obligatory argument. Path to directory where to put
+            //                        sorted images. Images will be placed into respective sub-directories
+            //                        named by next pattern 'yyyy-MM'
+            // [-verbose | -v]      - non-obligatory argument. Show progress bar (file names) in console output
+            #endregion
 
-            // Arguments list should contain at least one argument
-            if (args == null || args.Length < 1 ||
-                args[0].Equals("-?") || args[0].ToLower().Equals("-help"))
+            if (args.ContainsKey("-?") || args.ContainsKey("-help"))
             {
                 ShowUsage();
-                return false;
+                return;
             }
 
-            // Check input directory argument
-            if (!Directory.Exists(args[0]))
+            // Check obligatory arguments existence
+            if (!args.ContainsKey("-input_dir") && !args.ContainsKey("-id"))
             {
-                WriteLine($"Input directory '{args[0]}' doesn't exist{NewLine}");
-                WriteLine("Please check first command prompt argument and restart program");
-                return false;
+                throw new ApplicationException("'-input_dir | -id' - obligatory utility argument is undefined");
             }
 
-            // Check output directory argument
-            if (args.Length > 1 && !Directory.Exists(args[1]))
+            // Parse arguments values
+            foreach (var arg in args)
             {
-                WriteLine($"Output directory '{args[1]}' doesn't exist{NewLine}");
-                WriteLine("Please check second command prompt argument and restart program");
-                return false;
+                switch (arg.Key)
+                {
+                    case "-input_dir":
+                    case "-id":
+                        InputDir = Directory.Exists(arg.Value)
+                            ? arg.Value
+                            : throw new ApplicationException($"Input directory '{arg.Value}', specified" +
+                                $" in the utility argument '{arg.Key}', doesn't exist");
+                        break;
+                    case "-output_dir":
+                    case "-od":
+                        OutputDir = Directory.Exists(arg.Value)
+                            ? arg.Value
+                            : throw new ApplicationException($"Output directory '{arg.Value}', specified" +
+                                $" in the utility argument '{arg.Key}', doesn't exist");
+                        break;
+                    case "-verbose":
+                    case "-v":
+                        Verbose = true;
+                        break;
+                    default:
+                        throw new ApplicationException($"Unknown utility argument: '{arg.Key}:{arg.Value}'");
+                }
             }
 
-            return true;
+            // Set arguments default values
+            if (IsNullOrWhiteSpace(OutputDir))
+            {
+                OutputDir = Path.Combine(InputDir, "Output");
+            }
         }
 
         private static void RecreateOutputDir(String outputDirPath)
@@ -114,16 +175,12 @@ namespace PhotoSorterUtility
             Console.InputEncoding = Encoding.GetEncoding("UTF-8");
             Console.OutputEncoding = Encoding.GetEncoding("UTF-8");
 
-            if (!CheckArguments(args))
-            {
-                ReadKey(true);
-                return;
-            }
-
             UInt16 chunkSize;
             String knownImageTypes;
             try
             {
+                ParseArguments(GetArguments(args));
+
                 (chunkSize, knownImageTypes) = new Configuration();
             }
             catch (Exception ex)
@@ -133,20 +190,15 @@ namespace PhotoSorterUtility
                 return;
             }
 
-            var inputDir = args[0];
-            var outputDir = args.Length < 2 || IsNullOrWhiteSpace(args[1])
-                ? Path.Combine(inputDir, "Output")
-                : args[1];
-
             WriteLine("(Re)сreating output directory");
-            RecreateOutputDir(outputDir);
+            RecreateOutputDir(OutputDir);
 
             ExifToolWrapper.RemoveAllTmpArgFiles();
 
-            var files = GetInputImageFiles(inputDir, knownImageTypes);
+            var files = GetInputImageFiles(InputDir, knownImageTypes);
 
-            WriteLine($"Input directory is: \"{inputDir}\"");
-            WriteLine($"Output directory is: \"{outputDir}\"");
+            WriteLine($"Input directory is: \"{InputDir}\"");
+            WriteLine($"Output directory is: \"{OutputDir}\"");
             WriteLine($"Number of files to process in total: {files.Count}");
             WriteLine($"Number of files to process in chunk: {chunkSize}{NewLine}");
 
@@ -166,8 +218,11 @@ namespace PhotoSorterUtility
                     .AsParallel()
                     .SelectMany(filePaths =>
                         {
-                            progress.Report((Double) stepNum / files.Count);
-                            Interlocked.Add(ref stepNum, chunkSize);
+                            if (Verbose)
+                            {
+                                progress.Report((Double) stepNum / files.Count);
+                                Interlocked.Add(ref stepNum, chunkSize);
+                            }
 
                             var jsonString = Empty;
                             using (var exifTool = new ExifToolWrapper())
@@ -181,7 +236,7 @@ namespace PhotoSorterUtility
             }
 
             // Create sub-directories structure inside 'Output' directory
-            var unsortedImagesDirPath = Path.Combine(outputDir, "Unsorted");
+            var unsortedImagesDirPath = Path.Combine(OutputDir, "Unsorted");
             var outputSubDirs = new HashSet<String>();
             foreach (var imageMetadata in imagesMetadata)
             {
@@ -197,7 +252,7 @@ namespace PhotoSorterUtility
                     continue;
                 }
 
-                imageMetadata.CopyToDirectoryPath = Path.Combine(outputDir, creationDate?.ToString("yyyy-MM"));
+                imageMetadata.CopyToDirectoryPath = Path.Combine(OutputDir, creationDate?.ToString("yyyy-MM"));
                 if (!outputSubDirs.Contains(imageMetadata.CopyToDirectoryPath))
                 {
                     outputSubDirs.Add(imageMetadata.CopyToDirectoryPath);
@@ -220,9 +275,12 @@ namespace PhotoSorterUtility
             {
                 stepsCount = imagesMetadata.Count;
                 stepNum = 0;
-                foreach (var imageMetadata in imagesMetadata.AsParallel())
+                foreach (var imageMetadata in imagesMetadata)
                 {
-                    progress.Report((Double) stepNum / stepsCount);
+                    if (Verbose)
+                    {
+                        progress.Report((Double) stepNum / stepsCount);
+                    }
                     stepNum++;
 
                     File.Copy(imageMetadata.SourceFilePath, Path.Combine(imageMetadata.CopyToDirectoryPath, imageMetadata.SourceFileName));

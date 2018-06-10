@@ -43,10 +43,8 @@ namespace PhotoSorterUtility
             }
 
             // TODO: Add image file creation date from file?
-
-            DateTime creationDateTime;
             return DateTime.TryParseExact(dateTimeString, DateTimeFormat, CultureInfo.InvariantCulture,
-                                                DateTimeStyles.None, out creationDateTime)
+                                            DateTimeStyles.None, out DateTime creationDateTime)
                 ? (DateTime?) creationDateTime
                 : (DateTime?) null;
         }
